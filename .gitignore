@@ -1,0 +1,16 @@
+# Visual Studio
+.vs/
+*.user
+Intermediate/
+x64/
+
+# Build output (Siv3D template copies the exe into App/)
+TankGame/App/*.exe
+TankGame/App/*.pdb
+TankGame/App/AS_DEBUG/
+
+# Siv3D template sample assets (not used by the game)
+TankGame/App/example/
+
+# Leftover trial project
+tankGame_2/
