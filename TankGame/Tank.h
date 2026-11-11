@@ -1,0 +1,72 @@
+﻿# pragma once
+// ↑ インクルードガード。このヘッダーが同じ .cpp に何度 #include されても、中身を1回だけ読み込む。
+//   これがないと「Tank が二重に定義されている」というコンパイルエラーになる。
+
+# include <Siv3D.hpp>
+
+//
+// ヘッダー（.h）には「宣言」を書く。
+//   = このクラスに何があるか（メンバ変数・関数の一覧）。他のファイルが Tank を使うときに見る「説明書」。
+// 関数の中身（定義）は Tank.cpp に書く。
+//
+
+// ------------------------------------------------------------
+// TankInput: 戦車への「操作指示」
+// ------------------------------------------------------------
+// struct はメンバがデフォルトで public（外から自由に読み書きできる）。
+// 「ただのデータの入れ物」には struct、「守るべきルールを持つもの」には class を使うのが慣習。
+//
+// Tank はキーボードを直接読まず、この指示を受け取って動く。
+// こうしておけば、プレイヤー（キーボード）でも敵（AI）でも同じ Tank を操作できる。
+struct TankInput
+{
+	// 前後移動: +1 = 前進, -1 = 後退, 0 = 停止
+	double move = 0.0;
+
+	// 車体の回転: +1 = 時計回り, -1 = 反時計回り, 0 = 回転しない
+	double rotate = 0.0;
+
+	// 砲塔を向けたい位置（画面上の座標）
+	Vec2 aimTarget{ 0, 0 };
+};
+
+// ------------------------------------------------------------
+// Tank: 戦車1台ぶんの状態と振る舞い
+// ------------------------------------------------------------
+class Tank
+{
+public:
+	// ---- public: クラスの外から使ってよいもの ----
+
+	// コンストラクタ: Tank を作るときに1回だけ呼ばれる初期化用の関数。
+	// 戻り値を書かず、名前はクラス名と同じにする。
+	Tank(const Vec2& pos, const ColorF& color);
+
+	// 1フレーム分、状態を進める（入力を受けて移動・回転する）
+	void update(const TankInput& input, double deltaTime);
+
+	// 現在の状態を描画する。
+	// 末尾の const = 「この関数はメンバ変数を書き換えない」という約束。
+	// draw() の中でうっかり m_pos を変えようとすると、コンパイルエラーになる。
+	void draw() const;
+
+	// ゲッター: private なメンバ変数を「読むだけ」許可する関数。
+	// const 参照（const Vec2&）で返すと、コピーせずに渡せて、しかも書き換えられない。
+	const Vec2& getPos() const { return m_pos; }
+	double getBodyAngle() const { return m_bodyAngle; }
+	double getTurretAngle() const { return m_turretAngle; }
+
+private:
+	// ---- private: クラスの中だけで使うもの ----
+
+	// update() の中身を役割ごとに分けた補助関数（外から呼ぶ必要はないので private）
+	void updateBody(const TankInput& input, double deltaTime);
+	void updateTurret(const Vec2& aimTarget, double deltaTime);
+
+	// メンバ変数。名前の先頭の m_ は「メンバ変数」の目印（Siv3D でも使われている慣習）。
+	// ローカル変数や引数と区別しやすくなる。
+	Vec2 m_pos;                 // 中心の位置 [ピクセル]
+	double m_bodyAngle = 0.0;   // 車体の向き [ラジアン]
+	double m_turretAngle = 0.0; // 砲塔の向き [ラジアン]
+	ColorF m_color;             // 車体の色
+};

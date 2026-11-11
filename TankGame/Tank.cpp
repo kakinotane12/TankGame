@@ -1,0 +1,127 @@
+﻿# include "Tank.h"
+
+//
+// Tank.cpp には Tank.h で宣言した関数の「定義（中身）」を書く。
+//
+
+// ------------------------------------------------------------
+// 定数（このファイルの中だけで使う）
+// ------------------------------------------------------------
+// 名前のない namespace（無名名前空間）で囲むと、中身は「このファイルの中だけ」で見える。
+// 他の .cpp に同じ名前の定数があってもぶつからない。
+// Tank の調整値は Tank.cpp だけが知っていればよいので、ここに閉じ込める。
+namespace
+{
+	// 前進・後退の速さ [ピクセル/秒]
+	constexpr double MoveSpeed = 150.0;
+	constexpr double BackSpeed = 75.0;
+
+	// 車体の回転の速さ [ラジアン/秒]
+	constexpr double BodyRotateSpeed = 90_deg;
+
+	// 砲塔の回転の速さ [ラジアン/秒]
+	constexpr double TurretRotateSpeed = 45_deg;
+
+	// 車体の大きさ（前後の長さ × 左右の幅）[ピクセル]
+	constexpr SizeF BodySize{ 48, 36 };
+
+	// 砲塔（丸い部分）の半径と、砲身の長さ・太さ [ピクセル]
+	constexpr double TurretRadius = 12.0;
+	constexpr double BarrelLength = 30.0;
+	constexpr double BarrelWidth = 8.0;
+}
+
+// ------------------------------------------------------------
+// コンストラクタ
+// ------------------------------------------------------------
+// 「Tank::」は「Tank クラスの」という意味（スコープ解決演算子）。
+// : の後ろはメンバ初期化子リスト。メンバ変数を作る時点で値を入れる。
+// （{ } の中で m_pos = pos; と代入するより効率がよく、const メンバも初期化できる）
+Tank::Tank(const Vec2& pos, const ColorF& color)
+	: m_pos{ pos }
+	, m_color{ color }
+{
+}
+
+// ------------------------------------------------------------
+// 更新
+// ------------------------------------------------------------
+void Tank::update(const TankInput& input, const double deltaTime)
+{
+	updateBody(input, deltaTime);
+	updateTurret(input.aimTarget, deltaTime);
+}
+
+void Tank::updateBody(const TankInput& input, const double deltaTime)
+{
+	// --- 車体の回転 ---
+	// Stage 1 では if (KeyA) / if (KeyD) で分けていたが、
+	// input.rotate が -1 / 0 / +1 なので、掛け算1回で済む。
+	m_bodyAngle += input.rotate * BodyRotateSpeed * deltaTime;
+
+	// --- 前進・後退 ---
+	const Vec2 forward{ Math::Cos(m_bodyAngle), Math::Sin(m_bodyAngle) };
+
+	// 三項演算子: (条件) ? (真のときの値) : (偽のときの値)
+	const double speed = (0.0 <= input.move) ? MoveSpeed : BackSpeed;
+	m_pos += forward * input.move * speed * deltaTime;
+
+	// --- 画面外に出ないようにする ---
+	// （Stage 4 で「壁との当たり判定」に置き換える予定）
+	const double margin = BodySize.x / 2;
+	m_pos.x = Clamp(m_pos.x, margin, Scene::Width() - margin);
+	m_pos.y = Clamp(m_pos.y, margin, Scene::Height() - margin);
+}
+
+void Tank::updateTurret(const Vec2& aimTarget, const double deltaTime)
+{
+	// Stage 1 の練習課題 3 で作った「砲塔をゆっくり回す」処理
+	const Vec2 toTarget = aimTarget - m_pos;
+	const double targetAngle = Math::Atan2(toTarget.y, toTarget.x);
+
+	// 今の向きと目標の向きの差（-π 〜 π に正規化して、近いほうから回る）
+	const double diff = Math::NormalizeAngle(targetAngle - m_turretAngle, 0.0);
+
+	// 1フレームで回れる量を超えないようにする
+	const double maxStep = TurretRotateSpeed * deltaTime;
+	m_turretAngle += Clamp(diff, -maxStep, maxStep);
+}
+
+// ------------------------------------------------------------
+// 描画
+// ------------------------------------------------------------
+// 宣言と同じく、定義にも末尾の const が必要。
+void Tank::draw() const
+{
+	// 色はメンバ変数 m_color から作る（戦車ごとに色を変えられる）
+	// lerp(相手の色, 割合) は2色の間の色を求める。黒に 30% 近づけると暗い色になる。
+	const ColorF trackColor{ 0.25 };
+	const ColorF darkColor = m_color.lerp(ColorF{ 0.0 }, 0.3);
+	const ColorF turretColor = m_color.lerp(ColorF{ 1.0 }, 0.15);
+
+	// --- 車体 ---
+	{
+		const Transformer2D transform{ Mat3x2::Rotate(m_bodyAngle).translated(m_pos) };
+
+		// 履帯（キャタピラ）
+		RectF{ Arg::center(0, -BodySize.y / 2), BodySize.x + 4, 8 }.draw(trackColor);
+		RectF{ Arg::center(0, BodySize.y / 2), BodySize.x + 4, 8 }.draw(trackColor);
+
+		// 車体本体
+		RectF{ Arg::center(0, 0), BodySize }.draw(m_color);
+
+		// 前方の目印
+		RectF{ Arg::center(BodySize.x / 2 - 4, 0), 6, 20 }.draw(darkColor);
+	}
+
+	// --- 砲塔 ---
+	{
+		const Transformer2D transform{ Mat3x2::Rotate(m_turretAngle).translated(m_pos) };
+
+		// 砲身
+		RectF{ 0, -BarrelWidth / 2, BarrelLength, BarrelWidth }.draw(darkColor);
+
+		// 砲塔の丸い部分
+		Circle{ 0, 0, TurretRadius }.draw(turretColor);
+	}
+}
