@@ -3,6 +3,7 @@
 //   これがないと「Tank が二重に定義されている」というコンパイルエラーになる。
 
 # include <Siv3D.hpp>
+# include "Bullet.h" // Tank は弾を生み出すので、Bullet を知っている必要がある
 
 //
 // ヘッダー（.h）には「宣言」を書く。
@@ -28,6 +29,9 @@ struct TankInput
 
 	// 砲塔を向けたい位置（画面上の座標）
 	Vec2 aimTarget{ 0, 0 };
+
+	// 撃ちたいか。true でも、クールダウン中なら撃たれない（判断するのは Tank）。
+	bool fire = false;
 };
 
 // ------------------------------------------------------------
@@ -42,8 +46,11 @@ public:
 	// 戻り値を書かず、名前はクラス名と同じにする。
 	Tank(const Vec2& pos, const ColorF& color);
 
-	// 1フレーム分、状態を進める（入力を受けて移動・回転する）
-	void update(const TankInput& input, double deltaTime);
+	// 1フレーム分、状態を進める（入力を受けて移動・回転し、撃てるなら弾を撃つ）
+	// bullets: 撃った弾を追加する先。
+	//   「const なしの参照（&）」で受け取るので、関数の中で追加した弾が呼び出し元の配列に残る。
+	//   もし参照なし（Array<Bullet> bullets）にすると、コピーに追加されるだけで、弾は消えてしまう。
+	void update(const TankInput& input, double deltaTime, Array<Bullet>& bullets);
 
 	// 現在の状態を描画する。
 	// 末尾の const = 「この関数はメンバ変数を書き換えない」という約束。
@@ -62,6 +69,7 @@ private:
 	// update() の中身を役割ごとに分けた補助関数（外から呼ぶ必要はないので private）
 	void updateBody(const TankInput& input, double deltaTime);
 	void updateTurret(const Vec2& aimTarget, double deltaTime);
+	void updateFire(bool fire, double deltaTime, Array<Bullet>& bullets);
 
 	// メンバ変数。名前の先頭の m_ は「メンバ変数」の目印（Siv3D でも使われている慣習）。
 	// ローカル変数や引数と区別しやすくなる。
@@ -69,4 +77,5 @@ private:
 	double m_bodyAngle = 0.0;   // 車体の向き [ラジアン]
 	double m_turretAngle = 0.0; // 砲塔の向き [ラジアン]
 	ColorF m_color;             // 車体の色
+	double m_fireCooldown = 0.0; // 次に撃てるまでの残り時間 [秒]。0 なら撃てる。
 };
