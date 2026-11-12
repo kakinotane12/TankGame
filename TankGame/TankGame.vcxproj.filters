@@ -138,6 +138,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Bullet.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -809,6 +812,9 @@
     </Xml>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Bullet.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Tank.h">
       <Filter>Header Files</Filter>
     </ClInclude>

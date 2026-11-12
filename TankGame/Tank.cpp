@@ -29,6 +29,12 @@ namespace
 	constexpr double TurretRadius = 12.0;
 	constexpr double BarrelLength = 30.0;
 	constexpr double BarrelWidth = 8.0;
+
+	// 弾の速さ [ピクセル/秒]
+	constexpr double BulletSpeed = 300.0;
+
+	// 発射間隔（クールダウン）[秒]。撃ってからこの時間は次を撃てない。
+	constexpr double FireInterval = 0.5;
 }
 
 // ------------------------------------------------------------
@@ -46,10 +52,11 @@ Tank::Tank(const Vec2& pos, const ColorF& color)
 // ------------------------------------------------------------
 // 更新
 // ------------------------------------------------------------
-void Tank::update(const TankInput& input, const double deltaTime)
+void Tank::update(const TankInput& input, const double deltaTime, Array<Bullet>& bullets)
 {
 	updateBody(input, deltaTime);
 	updateTurret(input.aimTarget, deltaTime);
+	updateFire(input.fire, deltaTime, bullets);
 }
 
 void Tank::updateBody(const TankInput& input, const double deltaTime)
@@ -85,6 +92,30 @@ void Tank::updateTurret(const Vec2& aimTarget, const double deltaTime)
 	// 1フレームで回れる量を超えないようにする
 	const double maxStep = TurretRotateSpeed * deltaTime;
 	m_turretAngle += Clamp(diff, -maxStep, maxStep);
+}
+
+void Tank::updateFire(const bool fire, const double deltaTime, Array<Bullet>& bullets)
+{
+	// クールダウンの残り時間を減らす（0 より小さくはしない）
+	m_fireCooldown = Max(m_fireCooldown - deltaTime, 0.0);
+
+	// 撃ちたくない、またはまだ撃てないなら何もしない（早期 return）
+	if ((not fire) || (0.0 < m_fireCooldown))
+	{
+		return;
+	}
+
+	// 砲塔の向きの単位ベクトル
+	const Vec2 direction{ Math::Cos(m_turretAngle), Math::Sin(m_turretAngle) };
+
+	// 砲身の先端（戦車の中心から、砲塔の向きに砲身の長さだけ進んだ位置）から撃つ
+	const Vec2 muzzlePos = m_pos + direction * BarrelLength;
+
+	// emplace_back: 引数をそのまま Bullet のコンストラクタに渡して、配列の末尾に直接作る。
+	// bullets.push_back(Bullet{ muzzlePos, direction * BulletSpeed }); と同じ意味。
+	bullets.emplace_back(muzzlePos, direction * BulletSpeed);
+
+	m_fireCooldown = FireInterval;
 }
 
 // ------------------------------------------------------------
