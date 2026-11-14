@@ -5,7 +5,7 @@
 # include "Result.h"
 
 //
-// Stage 6: ゲームの流れ（タイトル → ゲーム → リザルト）
+// Stage 7: 演出（爆発・発射の閃光・跳弾の火花・効果音・画面の揺れ）
 //
 // 操作:
 //   W / S : 前進 / 後退
@@ -33,6 +33,15 @@ void Main()
 	FontAsset::Register(U"Large", FontMethod::MSDF, 48, Typeface::Bold);
 	FontAsset::Register(U"Medium", 22, Typeface::Bold);
 	FontAsset::Register(U"Small", 14, Typeface::Bold);
+
+	// ------------------------------------------------------------
+	// 効果音をアセットとして登録する
+	// ------------------------------------------------------------
+	// 音声ファイルを用意しなくても、Siv3D に内蔵された楽器の音（GM 音源）から効果音を作れる。
+	// AudioAsset::Register(名前, 楽器, 音の高さ, 長さ)
+	AudioAsset::Register(U"Fire", GMInstrument::Gunshot, PianoKey::C4, 0.3s);
+	AudioAsset::Register(U"Bounce", GMInstrument::Woodblock, PianoKey::C6, 0.1s);
+	AudioAsset::Register(U"Explosion", GMInstrument::Timpani, PianoKey::C2, 0.8s);
 
 	// ------------------------------------------------------------
 	// シーンマネージャー

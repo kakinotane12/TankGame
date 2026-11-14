@@ -80,6 +80,14 @@ public:
 	// 弾が当たったときに呼ぶ（このゲームでは1発で撃破）
 	void destroy() { m_alive = false; }
 
+	// このフレームの update() で弾を撃ったか（発射の演出・効果音を出すために使う）
+	bool firedThisFrame() const { return m_firedThisFrame; }
+
+	// 砲身の先端の位置
+	Vec2 getMuzzlePos() const;
+
+	const ColorF& getColor() const { return m_color; }
+
 private:
 	// ---- private: クラスの中だけで使うもの ----
 
@@ -97,4 +105,5 @@ private:
 	double m_fireCooldown = 0.0; // 次に撃てるまでの残り時間 [秒]。0 なら撃てる。
 	Team m_team;                 // どちらの陣営か（撃った弾にも引き継がれる）
 	bool m_alive = true;         // 撃破されていないか
+	bool m_firedThisFrame = false; // このフレームで撃ったか
 };

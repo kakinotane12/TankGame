@@ -33,6 +33,9 @@ public:
 	// 当たり判定用の円
 	Circle getCircle() const;
 
+	// このフレームの update() で壁に当たって跳ね返ったか（火花の演出・効果音に使う）
+	bool bouncedThisFrame() const { return m_bouncedThisFrame; }
+
 private:
 	Vec2 m_pos;              // 位置 [ピクセル]
 	Vec2 m_velocity;         // 速度 [ピクセル/秒]
@@ -40,4 +43,5 @@ private:
 	double m_lifeTime;       // 残りの寿命 [秒]
 	int32 m_bounceCount = 0; // 壁で跳ね返った回数
 	bool m_destroyed = false; // 何かに当たって消えることになったか
+	bool m_bouncedThisFrame = false; // このフレームで跳ね返ったか
 };

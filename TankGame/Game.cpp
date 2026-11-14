@@ -7,6 +7,12 @@ namespace
 	constexpr double ReadyTime = 1.5;    // 開始前の「READY」の表示時間 [秒]
 	constexpr double AfterTime = 2.0;    // クリア / 撃破のあと、次へ進むまでの時間 [秒]
 
+	// 効果音の音量（0.0 〜 1.0）
+	constexpr double PlayerFireVolume = 0.35;
+	constexpr double EnemyFireVolume = 0.2;
+	constexpr double BounceVolume = 0.3;
+	constexpr double ExplosionVolume = 0.8;
+
 	// キーボードとマウスの状態から、プレイヤー戦車への操作指示を作る（Stage 2 で作ったもの）
 	TankInput MakePlayerInput()
 	{
@@ -91,10 +97,43 @@ void Game::setPhase(const Phase phase)
 	m_phaseTimer = 0.0;
 }
 
+void Game::onTankDestroyed(const Tank& tank)
+{
+	// IEffect の派生クラスを追加するときは、add<クラス>(コンストラクタの引数...) と書く
+	m_effect.add<ExplosionEffect>(tank.getPos(), tank.getColor());
+
+	AudioAsset(U"Explosion").playOneShot(ExplosionVolume);
+
+	// プレイヤーがやられたときは大きく、敵を倒したときは小さく揺らす
+	if (tank.getTeam() == Team::Player)
+	{
+		startShake(10.0, 0.5);
+	}
+	else
+	{
+		startShake(4.0, 0.25);
+	}
+}
+
+void Game::startShake(const double power, const double time)
+{
+	if (m_shakePower * m_shakeTime < power * time)
+	{
+		m_shakePower = power;
+		m_shakeTime = time;
+	}
+}
+
 void Game::update()
 {
 	const double deltaTime = Scene::DeltaTime();
 	m_phaseTimer += deltaTime;
+
+	// --- 画面の揺れ ---
+	// 残り時間に比例して弱くなるように、ランダムな向きにずらす。
+	// ずれの量は update() で決めておき、draw() ではそれを使うだけにする（draw は const なので状態を変えられない）。
+	m_shakeTime = Max(m_shakeTime - deltaTime, 0.0);
+	m_shakeOffset = (0.0 < m_shakeTime) ? RandomVec2(m_shakePower * Min(m_shakeTime * 4.0, 1.0)) : Vec2{ 0, 0 };
 
 	if (KeyF2.down())
 	{
@@ -152,18 +191,36 @@ void Game::updateWorld(const double deltaTime, const bool playerControllable)
 	if (playerControllable && m_player.isAlive())
 	{
 		m_player.update(MakePlayerInput(), deltaTime, m_map, m_bullets);
+
+		if (m_player.firedThisFrame())
+		{
+			AddMuzzleFlash(m_effect, m_player.getMuzzlePos(), m_player.getTurretAngle());
+			AudioAsset(U"Fire").playOneShot(PlayerFireVolume);
+		}
 	}
 
 	for (auto& enemy : m_enemies)
 	{
 		const TankInput input = enemy.ai->think(enemy.tank, m_player, m_map, deltaTime);
 		enemy.tank.update(input, deltaTime, m_map, m_bullets);
+
+		if (enemy.tank.firedThisFrame())
+		{
+			AddMuzzleFlash(m_effect, enemy.tank.getMuzzlePos(), enemy.tank.getTurretAngle());
+			AudioAsset(U"Fire").playOneShot(EnemyFireVolume);
+		}
 	}
 
 	// --- 弾 ---
 	for (auto& bullet : m_bullets)
 	{
 		bullet.update(deltaTime, m_map);
+
+		if (bullet.bouncedThisFrame())
+		{
+			AddBounceSpark(m_effect, bullet.getPos());
+			AudioAsset(U"Bounce").playOneShot(BounceVolume);
+		}
 	}
 
 	// --- 弾と戦車の当たり判定 ---
@@ -175,6 +232,7 @@ void Game::updateWorld(const double deltaTime, const bool playerControllable)
 			{
 				m_player.destroy();
 				bullet.destroy();
+				onTankDestroyed(m_player);
 			}
 		}
 		else
@@ -185,6 +243,7 @@ void Game::updateWorld(const double deltaTime, const bool playerControllable)
 				{
 					enemy.tank.destroy();
 					bullet.destroy();
+					onTankDestroyed(enemy.tank);
 					break;
 				}
 			}
@@ -242,21 +301,30 @@ void Game::goToNextScene()
 // ------------------------------------------------------------
 void Game::draw() const
 {
-	m_map.draw();
-
-	for (const auto& enemy : m_enemies)
+	// --- ゲームの世界（マップ・戦車・弾・演出）は、揺れの分だけずらして描く ---
+	// HUD やメッセージは揺らさないので、このブロックの外で描く。
 	{
-		enemy.tank.draw();
-	}
+		const Transformer2D shake{ Mat3x2::Translate(m_shakeOffset) };
 
-	if (m_player.isAlive())
-	{
-		m_player.draw();
-	}
+		m_map.draw();
 
-	for (const auto& bullet : m_bullets)
-	{
-		bullet.draw();
+		for (const auto& enemy : m_enemies)
+		{
+			enemy.tank.draw();
+		}
+
+		if (m_player.isAlive())
+		{
+			m_player.draw();
+		}
+
+		for (const auto& bullet : m_bullets)
+		{
+			bullet.draw();
+		}
+
+		// 追加されている演出をすべて描く（時間切れのものは自動で取り除かれる）
+		m_effect.update();
 	}
 
 	// --- AI のデバッグ表示（F2） ---

@@ -36,6 +36,8 @@ Circle Bullet::getCircle() const
 
 void Bullet::update(const double deltaTime, const Map& map)
 {
+	m_bouncedThisFrame = false;
+
 	// --- x 方向と y 方向を別々に動かして、跳ね返りを判定する ---
 	// 壁は縦か横の辺しか持たない（タイルなので）。
 	//   x 方向に動いて壁に当たった → 縦の壁に当たった → 速度の x 成分を反転
@@ -49,6 +51,7 @@ void Bullet::update(const double deltaTime, const Map& map)
 		m_pos.x -= m_velocity.x * deltaTime; // 壁に入る前の位置に戻す
 		m_velocity.x = -m_velocity.x;        // 反射
 		++m_bounceCount;
+		m_bouncedThisFrame = true;
 	}
 
 	// y 方向
@@ -58,6 +61,7 @@ void Bullet::update(const double deltaTime, const Map& map)
 		m_pos.y -= m_velocity.y * deltaTime;
 		m_velocity.y = -m_velocity.y;
 		++m_bounceCount;
+		m_bouncedThisFrame = true;
 	}
 
 	// 寿命を減らす。0 以下になったら isAlive() が false を返す。

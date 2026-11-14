@@ -2,6 +2,7 @@
 # include "Common.h"
 # include "Tank.h"
 # include "EnemyAI.h"
+# include "Effects.h"
 
 // ------------------------------------------------------------
 // 敵 = 戦車（体）+ AI（頭脳）
@@ -47,8 +48,20 @@ private:
 	bool m_sceneChanging = false;  // changeScene() を呼んだか（2回呼ばないため）
 	bool m_showDebug = false;      // AI のデバッグ表示
 
+	// --- 演出 ---
+	Effect m_effect;               // 爆発・閃光・火花をまとめて管理する
+	double m_shakeTime = 0.0;      // 画面の揺れの残り時間 [秒]
+	double m_shakePower = 0.0;     // 画面の揺れの強さ [ピクセル]
+	Vec2 m_shakeOffset{ 0, 0 };    // このフレームの揺れのずれ（update で決めて draw で使う）
+
 	// フェーズを切り替える（タイマーもリセットする）
 	void setPhase(Phase phase);
+
+	// 戦車が撃破されたときの演出（爆発・効果音・画面の揺れ）
+	void onTankDestroyed(const Tank& tank);
+
+	// 画面を揺らす（今より強い揺れなら上書きする）
+	void startShake(double power, double time);
 
 	// 戦車・弾を1フレーム進め、当たり判定をする。
 	// playerControllable が false のときは、プレイヤーの戦車は動かさない。
