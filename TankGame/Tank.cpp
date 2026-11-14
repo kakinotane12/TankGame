@@ -53,8 +53,16 @@ Tank::Tank(const Vec2& pos, const ColorF& color, const Team team)
 // ------------------------------------------------------------
 // 更新
 // ------------------------------------------------------------
+Vec2 Tank::getMuzzlePos() const
+{
+	return m_pos + Vec2{ Math::Cos(m_turretAngle), Math::Sin(m_turretAngle) } * BarrelLength;
+}
+
 void Tank::update(const TankInput& input, const double deltaTime, const Map& map, Array<Bullet>& bullets)
 {
+	// 「このフレームで撃ったか」は毎フレーム最初に false に戻し、撃ったときだけ true にする
+	m_firedThisFrame = false;
+
 	updateBody(input, deltaTime, map);
 	updateTurret(input.aimTarget, deltaTime);
 	updateFire(input.fire, deltaTime, map, bullets);
@@ -124,6 +132,7 @@ void Tank::updateFire(const bool fire, const double deltaTime, const Map& map, A
 	bullets.emplace_back(muzzlePos, direction * BulletSpeed, m_team);
 
 	m_fireCooldown = FireInterval;
+	m_firedThisFrame = true;
 }
 
 // ------------------------------------------------------------
