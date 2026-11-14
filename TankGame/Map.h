@@ -17,10 +17,25 @@ enum class TileType
 };
 
 // ------------------------------------------------------------
+// 敵の種類と出現位置
+// ------------------------------------------------------------
+enum class EnemyType
+{
+	Chaser, // 'E': プレイヤーを探して追いかける
+	Sentry, // 'S': その場から動かず、見えたら撃つ固定砲台
+};
+
+struct EnemySpawn
+{
+	Vec2 pos;
+	EnemyType type;
+};
+
+// ------------------------------------------------------------
 // Map: タイルでできたマップ
 // ------------------------------------------------------------
 // テキストファイルから読み込む。1文字が1マス:
-//   '#' = 壁, '.' = 床, 'P' = プレイヤーの初期位置, 'E' = 敵の初期位置
+//   '#' = 壁, '.' = 床, 'P' = プレイヤーの初期位置, 'E' / 'S' = 敵の初期位置（種類別）
 class Map
 {
 public:
@@ -42,8 +57,11 @@ public:
 	// 円（中心 center, 半径 radius）が壁にめり込んでいたら、押し出した後の中心位置を返す
 	Vec2 pushOut(const Vec2& center, double radius) const;
 
+	// from から to が見えるか（2点を結ぶ線分が壁をさえぎらないか）
+	bool canSee(const Vec2& from, const Vec2& to) const;
+
 	const Vec2& getPlayerStart() const { return m_playerStart; }
-	const Array<Vec2>& getEnemyStarts() const { return m_enemyStarts; }
+	const Array<EnemySpawn>& getEnemySpawns() const { return m_enemySpawns; }
 
 private:
 	// Grid<T> は Siv3D の2次元配列。m_tiles[y][x] または m_tiles[Point{ x, y }] で読み書きする。
@@ -53,7 +71,7 @@ private:
 	Array<RectF> m_wallRects;
 
 	Vec2 m_playerStart{ 0, 0 };
-	Array<Vec2> m_enemyStarts;
+	Array<EnemySpawn> m_enemySpawns;
 
 	// マス目の座標 (x, y) → そのマスの長方形（画面上のピクセル座標）
 	static RectF TileRect(const Point& tile);

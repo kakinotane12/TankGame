@@ -43,9 +43,10 @@ namespace
 // 「Tank::」は「Tank クラスの」という意味（スコープ解決演算子）。
 // : の後ろはメンバ初期化子リスト。メンバ変数を作る時点で値を入れる。
 // （{ } の中で m_pos = pos; と代入するより効率がよく、const メンバも初期化できる）
-Tank::Tank(const Vec2& pos, const ColorF& color)
+Tank::Tank(const Vec2& pos, const ColorF& color, const Team team)
 	: m_pos{ pos }
 	, m_color{ color }
+	, m_team{ team }
 {
 }
 
@@ -118,8 +119,9 @@ void Tank::updateFire(const bool fire, const double deltaTime, const Map& map, A
 	}
 
 	// emplace_back: 引数をそのまま Bullet のコンストラクタに渡して、配列の末尾に直接作る。
-	// bullets.push_back(Bullet{ muzzlePos, direction * BulletSpeed }); と同じ意味。
-	bullets.emplace_back(muzzlePos, direction * BulletSpeed);
+	// bullets.push_back(Bullet{ muzzlePos, direction * BulletSpeed, m_team }); と同じ意味。
+	// 弾には自分のチームを持たせる（同じチームの戦車には当たらない）
+	bullets.emplace_back(muzzlePos, direction * BulletSpeed, m_team);
 
 	m_fireCooldown = FireInterval;
 }

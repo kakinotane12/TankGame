@@ -5,6 +5,7 @@
 # include <Siv3D.hpp>
 # include "Bullet.h" // Tank は弾を生み出すので、Bullet を知っている必要がある
 # include "Map.h"    // 壁との当たり判定に使う（Bullet.h 経由でも読み込まれるが、使うものは自分でインクルードしておく）
+# include "Team.h"
 
 //
 // ヘッダー（.h）には「宣言」を書く。
@@ -45,7 +46,7 @@ public:
 
 	// コンストラクタ: Tank を作るときに1回だけ呼ばれる初期化用の関数。
 	// 戻り値を書かず、名前はクラス名と同じにする。
-	Tank(const Vec2& pos, const ColorF& color);
+	Tank(const Vec2& pos, const ColorF& color, Team team);
 
 	// 1フレーム分、状態を進める（入力を受けて移動・回転し、撃てるなら弾を撃つ）
 	// map: 壁との当たり判定に使う。読むだけなので const 参照。
@@ -65,8 +66,19 @@ public:
 	double getBodyAngle() const { return m_bodyAngle; }
 	double getTurretAngle() const { return m_turretAngle; }
 
+	Team getTeam() const { return m_team; }
+
 	// 当たり判定用の半径 [ピクセル]（車体を円とみなす）
 	static constexpr double CollisionRadius = 20.0;
+
+	// 当たり判定用の円
+	Circle getCircle() const { return Circle{ m_pos, CollisionRadius }; }
+
+	// 撃破されていないか
+	bool isAlive() const { return m_alive; }
+
+	// 弾が当たったときに呼ぶ（このゲームでは1発で撃破）
+	void destroy() { m_alive = false; }
 
 private:
 	// ---- private: クラスの中だけで使うもの ----
@@ -83,4 +95,6 @@ private:
 	double m_turretAngle = 0.0; // 砲塔の向き [ラジアン]
 	ColorF m_color;             // 車体の色
 	double m_fireCooldown = 0.0; // 次に撃てるまでの残り時間 [秒]。0 なら撃てる。
+	Team m_team;                 // どちらの陣営か（撃った弾にも引き継がれる）
+	bool m_alive = true;         // 撃破されていないか
 };

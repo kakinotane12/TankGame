@@ -45,7 +45,7 @@ bool Map::load(const FilePathView path)
 	// 全部「床」で埋めた width × height の Grid を作り、文字に応じて書き換えていく
 	m_tiles = Grid<TileType>(width, height, TileType::Floor);
 	m_wallRects.clear();
-	m_enemyStarts.clear();
+	m_enemySpawns.clear();
 
 	bool hasPlayerStart = false;
 
@@ -69,7 +69,11 @@ bool Map::load(const FilePathView path)
 				break;
 
 			case U'E':
-				m_enemyStarts << TileRect(tile).center();
+				m_enemySpawns << EnemySpawn{ TileRect(tile).center(), EnemyType::Chaser };
+				break;
+
+			case U'S':
+				m_enemySpawns << EnemySpawn{ TileRect(tile).center(), EnemyType::Sentry };
 				break;
 
 			default: // それ以外の文字（'.' など）は床のまま
@@ -141,6 +145,22 @@ bool Map::isWallAt(const Vec2& pos) const
 	}
 
 	return (m_tiles[tile] == TileType::Wall);
+}
+
+bool Map::canSee(const Vec2& from, const Vec2& to) const
+{
+	// 2点を結ぶ線分を作り、どれか1つでも壁の長方形と交差していたら「見えない」
+	const Line sight{ from, to };
+
+	for (const auto& rect : m_wallRects)
+	{
+		if (sight.intersects(rect))
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 Vec2 Map::pushOut(const Vec2& center, const double radius) const
