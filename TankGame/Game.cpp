@@ -45,6 +45,25 @@ namespace
 		return input;
 	}
 
+	// 射撃のばらつきの範囲を、砲身の先から伸びる扇形（三角形）で描く（Stage 8）
+	// length: 扇形の長さ [ピクセル]
+	void DrawSpreadCone(const Tank& tank, const double length, const ColorF& color)
+	{
+		const Vec2 muzzle = tank.getMuzzlePos();
+		const double angle = tank.getTurretAngle();
+		const double spread = tank.getSpread();
+
+		// 角度 a の向きに length だけ進んだ点
+		const auto pointAt = [&](const double a) { return muzzle + Vec2{ Math::Cos(a), Math::Sin(a) } * length; };
+
+		const Vec2 left = pointAt(angle - spread);
+		const Vec2 right = pointAt(angle + spread);
+
+		Triangle{ muzzle, left, right }.draw(color);
+		Line{ muzzle, left }.draw(1.0, color.withAlpha(color.a * 3));
+		Line{ muzzle, right }.draw(1.0, color.withAlpha(color.a * 3));
+	}
+
 	// マップの出現位置から敵を作る
 	Array<Enemy> SpawnEnemies(const Map& map)
 	{
@@ -308,6 +327,22 @@ void Game::draw() const
 
 		m_map.draw();
 
+		// 射撃のばらつきの表示（戦車より下に描いて、車体を隠さないようにする）
+		if (m_player.isAlive() && (m_phase == Phase::Playing))
+		{
+			// 扇形の長さはカーソルまでの距離（近すぎると見えないので最低 80px）
+			const double length = Max(m_player.getMuzzlePos().distanceFrom(Cursor::PosF()), 80.0);
+			DrawSpreadCone(m_player, length, ColorF{ 1.0, 1.0, 1.0, 0.12 });
+		}
+
+		if (m_showDebug)
+		{
+			for (const auto& enemy : m_enemies)
+			{
+				DrawSpreadCone(enemy.tank, 200.0, ColorF{ 1.0, 0.2, 0.2, 0.10 });
+			}
+		}
+
 		for (const auto& enemy : m_enemies)
 		{
 			enemy.tank.draw();
@@ -341,6 +376,20 @@ void Game::draw() const
 
 			FontAsset(U"Small")(enemy.ai->getStateName()).drawAt(pos.movedBy(0, -32), ColorF{ 0.1 });
 		}
+	}
+
+	// --- 照準（カーソルの位置）---
+	// 円の半径 = 「カーソルの距離で、弾がどれだけ左右にずれうるか」= 距離 × tan(ばらつき)。
+	// 遠くを狙うほど円が大きくなり、同じ角度のずれでも遠いほど外れやすいことが分かる。
+	// 揺れの影響を受けないよう、Transformer2D のブロックの外で描く（カーソルは揺れないため）。
+	if (m_player.isAlive() && (m_phase == Phase::Playing))
+	{
+		const Vec2 cursor = Cursor::PosF();
+		const double distance = m_player.getMuzzlePos().distanceFrom(cursor);
+		const double radius = Max(distance * Math::Tan(m_player.getSpread()), 4.0);
+
+		Circle{ cursor, radius }.drawFrame(2.0, ColorF{ 1.0, 0.95, 0.6, 0.9 });
+		Circle{ cursor, 2.0 }.draw(ColorF{ 1.0, 0.95, 0.6, 0.9 });
 	}
 
 	drawHUD();
@@ -383,6 +432,9 @@ void Game::drawHUD() const
 	{
 		RectF{ Arg::center((320 + i * 24), Map::TileSize / 2), 18, 14 }.draw(PlayerColor).drawFrame(1, ColorF{ 0.1 });
 	}
+
+	// 今のばらつきを角度で表示する（Stage 8）。ToDegrees: ラジアン → 度
+	font(U"精度 ±{:.1f}°"_fmt(Math::ToDegrees(m_player.getSpread()))).draw(Arg::leftCenter(480, Map::TileSize / 2), ColorF{ 0.95 });
 
 	font(U"敵 {}"_fmt(m_enemies.size())).draw(Arg::rightCenter((Scene::Width() - 16), Map::TileSize / 2), ColorF{ 0.95 });
 }

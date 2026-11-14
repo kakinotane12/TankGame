@@ -88,12 +88,17 @@ public:
 
 	const ColorF& getColor() const { return m_color; }
 
+	// 今の射撃のばらつき [ラジアン]。弾は「砲塔の向き ± この角度」の範囲に飛ぶ。
+	double getSpread() const { return m_spread; }
+
 private:
 	// ---- private: クラスの中だけで使うもの ----
 
 	// update() の中身を役割ごとに分けた補助関数（外から呼ぶ必要はないので private）
 	void updateBody(const TankInput& input, double deltaTime, const Map& map);
-	void updateTurret(const Vec2& aimTarget, double deltaTime);
+	// 戻り値: このフレームで砲塔をどれだけ回したか（0.0 = 止まっている 〜 1.0 = 全速で回した）
+	double updateTurret(const Vec2& aimTarget, double deltaTime);
+	void updateSpread(const TankInput& input, double turretTurnRatio, double deltaTime);
 	void updateFire(bool fire, double deltaTime, const Map& map, Array<Bullet>& bullets);
 
 	// メンバ変数。名前の先頭の m_ は「メンバ変数」の目印（Siv3D でも使われている慣習）。
@@ -106,4 +111,5 @@ private:
 	Team m_team;                 // どちらの陣営か（撃った弾にも引き継がれる）
 	bool m_alive = true;         // 撃破されていないか
 	bool m_firedThisFrame = false; // このフレームで撃ったか
+	double m_spread = 0.0;         // 射撃のばらつき [ラジアン]（コンストラクタで最小値にする）
 };
