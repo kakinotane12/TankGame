@@ -2,6 +2,15 @@
 
 C++ と [OpenSiv3D](https://siv3d.github.io/ja-jp/) で作る、2D 見下ろし型の戦車ゲームです。
 
+<!-- プレイ動画: GitHub の編集画面で mp4 をここにドラッグ＆ドロップすると、URL が入って動画が表示される -->
+
+## 遊ぶ（ビルド不要）
+
+1. [Releases](https://github.com/kakinotane12/TankGame/releases) から `TankGame-*-win64.zip` をダウンロードして展開する
+2. `TankGame.exe` を起動する（`map` フォルダは exe と同じ場所に置いたままにする）
+
+署名のない exe のため、「Windows によって PC が保護されました」と表示されることがあります。その場合は「詳細情報」→「実行」で起動できます。
+
 ## 目的
 
 C++ の学習を兼ねた個人開発です。ゲームを段階的に作りながら、クラス設計・コンテナ・所有権などの C++ の基礎と、Siv3D の使い方を身につけることを目指しています。
@@ -36,3 +45,5 @@ C++ の学習を兼ねた個人開発です。ゲームを段階的に作りな�
 1. `TankGame.sln` を Visual Studio 2022 で開く
 2. 構成を `Debug` / `x64` にする
 3. `F5` で実行する
+
+配布用には `Release` / `x64` でビルドし、`TankGame/App/` の `TankGame.exe` と `map/` フォルダを zip にまとめます（Siv3D のエンジンのデータは Release ビルドの exe に埋め込まれるため、ほかのファイルは不要です）。

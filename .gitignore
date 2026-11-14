@@ -17,3 +17,6 @@ tankGame_2/
 
 docs/
 CppProperties.json
+
+# Distribution zip (uploaded to GitHub Releases, not committed)
+dist/
