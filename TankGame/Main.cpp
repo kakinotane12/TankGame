@@ -1,18 +1,20 @@
 ﻿# include <Siv3D.hpp> // Siv3D v0.6.16
 # include "Tank.h"     // 自分で作ったヘッダーは "" で囲む（<> は外部ライブラリ）
+# include "EnemyAI.h"
 
 //
-// Stage 4: マップと跳弾
+// Stage 5: 敵 AI と撃破
 //
 // 操作:
 //   W / S : 前進 / 後退
 //   A / D : 車体を左回転 / 右回転
 //   マウス : 砲塔の向き
-//   左クリック : 発射（押しっぱなしで連射。ただし発射間隔の制限あり）
+//   左クリック : 発射
+//   R : やり直し
+//   F2 : AI のデバッグ表示（状態と視線）の切り替え（F1 は Siv3D がライセンス表示に使っているので避ける）
 //
-// マップは App/map/stage1.txt から読み込む。戦車は壁を通れず、弾は壁で1回跳ね返る。
-// 赤い戦車（敵）はマップの 'E' の位置に置かれ、プレイヤーを追いかけて撃ってくる。
-// （まだ戦車と弾の当たり判定はないので、弾は戦車をすり抜ける）
+// 弾が当たると1発で撃破。敵を全滅させればクリア。
+// 赤い敵（マップの 'E'）は巡回 → 発見したら追跡 → 見失ったら捜索、紫の敵（'S'）は動かない固定砲台。
 //
 
 // ------------------------------------------------------------
@@ -50,44 +52,40 @@ TankInput MakePlayerInput()
 
 	return input;
 }
-TankInput MakeChaseInput(const Tank& self, const Vec2& target) {
-	TankInput input;
-	const Vec2 toTarget = target - self.getPos();
-	const double targetAngle = Math::Atan2(toTarget.y, toTarget.x);
-	const double diff = Math::NormalizeAngle(targetAngle - self.getBodyAngle(), 0.0);
-	const double distance = toTarget.length();  // ベクトルの長さ = 2点間の距離
 
-	//砲塔とターゲットの角度の差分
-	const double t_diff = Math::NormalizeAngle(targetAngle - self.getTurretAngle(), 0.0);
+// ------------------------------------------------------------
+// 敵 = 戦車（体）+ AI（頭脳）
+// ------------------------------------------------------------
+// AI は種類によって ChaserAI だったり SentryAI だったりするので、
+// 「EnemyAI へのポインタ」として持つ。実体は std::unique_ptr が所有し、Enemy が消えると AI も消える。
+struct Enemy
+{
+	Tank tank;
+	std::unique_ptr<EnemyAI> ai;
+};
 
-	if (diff > 0) {
-		input.rotate = 1.0;
-	}
-	else if (diff < 0) {
-		input.rotate = -1.0;
-	}
-	else {
-		input.rotate = 0;
-	}
-	if (std::abs(diff) < 10_deg && distance > 120) {
-		input.move = 1.0;
-	}
-	else {
-		input.move = 0.0;
-	}
+// マップの出現位置から敵を作る
+Array<Enemy> SpawnEnemies(const Map& map)
+{
+	Array<Enemy> enemies;
 
-	if (std::abs(t_diff) < 5_deg) {
-		input.fire = true;
+	for (const auto& spawn : map.getEnemySpawns())
+	{
+		const ColorF color = (spawn.type == EnemyType::Chaser)
+			? ColorF{ 0.60, 0.30, 0.25 }   // 追跡型: 赤
+			: ColorF{ 0.45, 0.30, 0.55 };  // 固定砲台: 紫
+
+		// Enemy{ ... } で作った一時オブジェクトを、配列の末尾に「ムーブ（移動）」して入れる。
+		// unique_ptr はコピーできない（所有者は1人だけ）ので、ムーブしかできない。
+		enemies.push_back(Enemy{ Tank{ spawn.pos, color, Team::Enemy }, MakeEnemyAI(spawn.type) });
 	}
 
-	input.aimTarget = target;
-
-	return input;
+	return enemies;
 }
 
 void Main()
 {
-	Window::SetTitle(U"TankGame - Stage 4");
+	Window::SetTitle(U"TankGame - Stage 5");
 	Scene::SetBackground(ColorF{ 0.85, 0.80, 0.65 });
 
 	// ------------------------------------------------------------
@@ -103,81 +101,139 @@ void Main()
 	}
 
 	// ------------------------------------------------------------
-	// 戦車を作る
+	// ゲームの状態
 	// ------------------------------------------------------------
-	// プレイヤーはマップの 'P' の位置に置く
-	Tank player{ map.getPlayerStart(), ColorF{ 0.30, 0.45, 0.25 } };
-
-	// 敵はマップの 'E' の数だけ作る。台数がマップで決まるので Array で持つ。
-	Array<Tank> enemies;
-	for (const auto& pos : map.getEnemyStarts())
-	{
-		enemies.emplace_back(pos, ColorF{ 0.60, 0.30, 0.25 });
-	}
-
-	// ------------------------------------------------------------
-	// 画面上のすべての弾
-	// ------------------------------------------------------------
-	// Array は Siv3D の可変長配列（中身は std::vector とほぼ同じ）。
-	// 弾は撃つたびに増え、寿命が来たら減るので、数が決まっていない。そういうものは Array で持つ。
-	// どの戦車が撃った弾も、ここに集める。
+	const ColorF playerColor{ 0.30, 0.45, 0.25 };
+	Tank player{ map.getPlayerStart(), playerColor, Team::Player };
+	Array<Enemy> enemies = SpawnEnemies(map);
 	Array<Bullet> bullets;
+
+	// デバッグ表示用
+	bool showDebug = false;
+	const Font debugFont{ 14, Typeface::Bold };
 
 	while (System::Update())
 	{
 		const double deltaTime = Scene::DeltaTime();
 
 		// ============================================================
+		// 0. やり直し・デバッグ切り替え
+		// ============================================================
+		if (KeyR.down())
+		{
+			// 状態を最初に戻す（新しいオブジェクトを作って代入する）
+			player = Tank{ map.getPlayerStart(), playerColor, Team::Player };
+			enemies = SpawnEnemies(map);
+			bullets.clear();
+		}
+
+		if (KeyF2.down())
+		{
+			showDebug = (not showDebug);
+		}
+
+		// ============================================================
 		// 1. 更新
 		// ============================================================
 		// --- 戦車（撃った弾は bullets に追加される） ---
-		player.update(MakePlayerInput(), deltaTime, map, bullets);
+		if (player.isAlive())
+		{
+			player.update(MakePlayerInput(), deltaTime, map, bullets);
+		}
 
-		// 敵: Stage 2〜3 の練習課題で作った MakeChaseInput() でプレイヤーを追いかける
 		for (auto& enemy : enemies)
 		{
-			enemy.update(MakeChaseInput(enemy, player.getPos()), deltaTime, map, bullets);
+			// -> は「ポインタが指す先のメンバ」を使う演算子。enemy.ai は unique_ptr（ポインタ）なので -> を使う。
+			// ai がどの派生クラスでも、同じ書き方で think() を呼べる（virtual 関数の効果）。
+			const TankInput input = enemy.ai->think(enemy.tank, player, map, deltaTime);
+			enemy.tank.update(input, deltaTime, map, bullets);
 		}
 
 		// --- 弾 ---
-		// 範囲 for 文: bullets の要素を先頭から1つずつ bullet に入れて繰り返す。
-		// bulletsの中の弾丸について，ひとつづつ経過時間を更新
-		// auto& と「参照」で受け取る
 		for (auto& bullet : bullets)
 		{
 			bullet.update(deltaTime, map);
 		}
 
-		// 寿命が切れた弾を配列から取り除く。
-		// remove_if(条件) は「配列の中で条件が true になる要素」をすべて削除する。
-		// [](const Bullet& b) { ... } はラムダ式（その場で書く小さな関数）。
-		// 「弾 b を受け取って、生きていなければ true（= 削除する）を返す」という意味。
+		// --- 弾と戦車の当たり判定 ---
+		for (auto& bullet : bullets)
+		{
+			if (bullet.getTeam() == Team::Enemy)
+			{
+				// 敵の弾 → プレイヤーに当たるか
+				if (player.isAlive() && player.getCircle().intersects(bullet.getCircle()))
+				{
+					player.destroy();
+					bullet.destroy();
+				}
+			}
+			else
+			{
+				// プレイヤーの弾 → どれかの敵に当たるか
+				for (auto& enemy : enemies)
+				{
+					if (enemy.tank.isAlive() && enemy.tank.getCircle().intersects(bullet.getCircle()))
+					{
+						enemy.tank.destroy();
+						bullet.destroy();
+						break; // 1発の弾が2台を同時に撃破しないように、当たったらループを抜ける
+					}
+				}
+			}
+		}
+
+		// --- 消えるものを取り除く ---
 		bullets.remove_if([](const Bullet& b) { return (not b.isAlive()); });
+		enemies.remove_if([](const Enemy& e) { return (not e.tank.isAlive()); });
 
 		// ============================================================
 		// 2. 描画
 		// ============================================================
-		// マップを最初に描く（いちばん下に表示される）
 		map.draw();
 
 		for (const auto& enemy : enemies)
 		{
-			enemy.draw();
+			enemy.tank.draw();
 		}
-		player.draw(); // 後に描いたほうが上に重なる
 
-		// 弾は戦車より上に描く。描画では弾を変えないので const auto& で受け取る。
+		if (player.isAlive())
+		{
+			player.draw();
+		}
+
 		for (const auto& bullet : bullets)
 		{
 			bullet.draw();
 		}
 
-		// --- デバッグ表示 ---
-		// player の中身（m_pos など）は private なので直接は読めない。ゲッター経由で読む。
+		// --- AI のデバッグ表示（F2） ---
+		if (showDebug)
+		{
+			for (const auto& enemy : enemies)
+			{
+				const Vec2 pos = enemy.tank.getPos();
+
+				// プレイヤーが見えていれば、視線を線で描く
+				if (player.isAlive() && map.canSee(pos, player.getPos()))
+				{
+					Line{ pos, player.getPos() }.draw(1.0, ColorF{ 1.0, 0.0, 0.0, 0.3 });
+				}
+
+				debugFont(enemy.ai->getStateName()).drawAt(pos.movedBy(0, -32), ColorF{ 0.1 });
+			}
+		}
+
+		// --- 状況表示（Stage 6 で HUD に置き換える予定） ---
 		ClearPrint();
-		Print << U"pos    : " << player.getPos();
-		Print << U"body   : {:.1f} deg"_fmt(Math::ToDegrees(player.getBodyAngle()));
-		Print << U"turret : {:.1f} deg"_fmt(Math::ToDegrees(player.getTurretAngle()));
-		Print << U"bullets: " << bullets.size(); // 弾が増え続けず、ちゃんと消えているかの確認用
+		Print << U"敵の残り: " << enemies.size();
+
+		if (not player.isAlive())
+		{
+			Print << U"撃破された… R でやり直し";
+		}
+		else if (enemies.isEmpty())
+		{
+			Print << U"クリア！ R でもう一度";
+		}
 	}
 }

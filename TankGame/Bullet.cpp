@@ -12,9 +12,10 @@ namespace
 	constexpr int32 MaxBounces = 1;
 }
 
-Bullet::Bullet(const Vec2& pos, const Vec2& velocity)
+Bullet::Bullet(const Vec2& pos, const Vec2& velocity, const Team team)
 	: m_pos{ pos }
 	, m_velocity{ velocity }
+	, m_team{ team }
 	, m_lifeTime{ BulletLifeTime }
 {
 }
@@ -22,9 +23,15 @@ Bullet::Bullet(const Vec2& pos, const Vec2& velocity)
 bool Bullet::isAlive() const
 {
 	// Scene::Rect() は画面全体の長方形。マップの外周は壁なので、通常は画面外に出ることはないが、念のため残す。
-	return ((0.0 < m_lifeTime)
+	return ((not m_destroyed)
+		&& (0.0 < m_lifeTime)
 		&& (m_bounceCount <= MaxBounces)
 		&& Scene::Rect().contains(m_pos));
+}
+
+Circle Bullet::getCircle() const
+{
+	return Circle{ m_pos, BulletRadius };
 }
 
 void Bullet::update(const double deltaTime, const Map& map)
@@ -59,5 +66,7 @@ void Bullet::update(const double deltaTime, const Map& map)
 
 void Bullet::draw() const
 {
-	Circle{ m_pos, BulletRadius }.draw(ColorF{ 0.15 });
+	// プレイヤーの弾は黒、敵の弾は赤っぽくして、どちらの弾か見分けられるようにする
+	const ColorF color = (m_team == Team::Player) ? ColorF{ 0.15 } : ColorF{ 0.55, 0.10, 0.05 };
+	getCircle().draw(color);
 }
