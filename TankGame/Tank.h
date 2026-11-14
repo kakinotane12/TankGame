@@ -4,6 +4,7 @@
 
 # include <Siv3D.hpp>
 # include "Bullet.h" // Tank は弾を生み出すので、Bullet を知っている必要がある
+# include "Map.h"    // 壁との当たり判定に使う（Bullet.h 経由でも読み込まれるが、使うものは自分でインクルードしておく）
 
 //
 // ヘッダー（.h）には「宣言」を書く。
@@ -47,10 +48,11 @@ public:
 	Tank(const Vec2& pos, const ColorF& color);
 
 	// 1フレーム分、状態を進める（入力を受けて移動・回転し、撃てるなら弾を撃つ）
+	// map: 壁との当たり判定に使う。読むだけなので const 参照。
 	// bullets: 撃った弾を追加する先。
 	//   「const なしの参照（&）」で受け取るので、関数の中で追加した弾が呼び出し元の配列に残る。
 	//   もし参照なし（Array<Bullet> bullets）にすると、コピーに追加されるだけで、弾は消えてしまう。
-	void update(const TankInput& input, double deltaTime, Array<Bullet>& bullets);
+	void update(const TankInput& input, double deltaTime, const Map& map, Array<Bullet>& bullets);
 
 	// 現在の状態を描画する。
 	// 末尾の const = 「この関数はメンバ変数を書き換えない」という約束。
@@ -63,13 +65,16 @@ public:
 	double getBodyAngle() const { return m_bodyAngle; }
 	double getTurretAngle() const { return m_turretAngle; }
 
+	// 当たり判定用の半径 [ピクセル]（車体を円とみなす）
+	static constexpr double CollisionRadius = 20.0;
+
 private:
 	// ---- private: クラスの中だけで使うもの ----
 
 	// update() の中身を役割ごとに分けた補助関数（外から呼ぶ必要はないので private）
-	void updateBody(const TankInput& input, double deltaTime);
+	void updateBody(const TankInput& input, double deltaTime, const Map& map);
 	void updateTurret(const Vec2& aimTarget, double deltaTime);
-	void updateFire(bool fire, double deltaTime, Array<Bullet>& bullets);
+	void updateFire(bool fire, double deltaTime, const Map& map, Array<Bullet>& bullets);
 
 	// メンバ変数。名前の先頭の m_ は「メンバ変数」の目印（Siv3D でも使われている慣習）。
 	// ローカル変数や引数と区別しやすくなる。

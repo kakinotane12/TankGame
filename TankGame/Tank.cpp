@@ -52,14 +52,14 @@ Tank::Tank(const Vec2& pos, const ColorF& color)
 // ------------------------------------------------------------
 // 更新
 // ------------------------------------------------------------
-void Tank::update(const TankInput& input, const double deltaTime, Array<Bullet>& bullets)
+void Tank::update(const TankInput& input, const double deltaTime, const Map& map, Array<Bullet>& bullets)
 {
-	updateBody(input, deltaTime);
+	updateBody(input, deltaTime, map);
 	updateTurret(input.aimTarget, deltaTime);
-	updateFire(input.fire, deltaTime, bullets);
+	updateFire(input.fire, deltaTime, map, bullets);
 }
 
-void Tank::updateBody(const TankInput& input, const double deltaTime)
+void Tank::updateBody(const TankInput& input, const double deltaTime, const Map& map)
 {
 	// --- 車体の回転 ---
 	// Stage 1 では if (KeyA) / if (KeyD) で分けていたが、
@@ -73,11 +73,10 @@ void Tank::updateBody(const TankInput& input, const double deltaTime)
 	const double speed = (0.0 <= input.move) ? MoveSpeed : BackSpeed;
 	m_pos += forward * input.move * speed * deltaTime;
 
-	// --- 画面外に出ないようにする ---
-	// （Stage 4 で「壁との当たり判定」に置き換える予定）
-	const double margin = BodySize.x / 2;
-	m_pos.x = Clamp(m_pos.x, margin, Scene::Width() - margin);
-	m_pos.y = Clamp(m_pos.y, margin, Scene::Height() - margin);
+	// --- 壁にめり込んだら押し戻す ---
+	// 「動いてから、めり込んだ分を戻す」方式。壁に斜めにぶつかると、壁に沿って滑るように動く。
+	// （Stage 3 までの「画面外に出ない」処理は、マップの外周の壁が代わりに担う）
+	m_pos = map.pushOut(m_pos, CollisionRadius);
 }
 
 void Tank::updateTurret(const Vec2& aimTarget, const double deltaTime)
@@ -94,7 +93,7 @@ void Tank::updateTurret(const Vec2& aimTarget, const double deltaTime)
 	m_turretAngle += Clamp(diff, -maxStep, maxStep);
 }
 
-void Tank::updateFire(const bool fire, const double deltaTime, Array<Bullet>& bullets)
+void Tank::updateFire(const bool fire, const double deltaTime, const Map& map, Array<Bullet>& bullets)
 {
 	// クールダウンの残り時間を減らす（0 より小さくはしない）
 	m_fireCooldown = Max(m_fireCooldown - deltaTime, 0.0);
@@ -110,6 +109,13 @@ void Tank::updateFire(const bool fire, const double deltaTime, Array<Bullet>& bu
 
 	// 砲身の先端（戦車の中心から、砲塔の向きに砲身の長さだけ進んだ位置）から撃つ
 	const Vec2 muzzlePos = m_pos + direction * BarrelLength;
+
+	// 壁に密着して砲身の先が壁の中にあるときは撃たない（弾が壁の中に生まれてしまうため）
+	// このときはクールダウンも消費しない
+	if (map.isWallAt(muzzlePos))
+	{
+		return;
+	}
 
 	// emplace_back: 引数をそのまま Bullet のコンストラクタに渡して、配列の末尾に直接作る。
 	// bullets.push_back(Bullet{ muzzlePos, direction * BulletSpeed }); と同じ意味。

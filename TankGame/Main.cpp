@@ -2,7 +2,7 @@
 # include "Tank.h"     // 自分で作ったヘッダーは "" で囲む（<> は外部ライブラリ）
 
 //
-// Stage 3: 弾を撃つ
+// Stage 4: マップと跳弾
 //
 // 操作:
 //   W / S : 前進 / 後退
@@ -10,8 +10,9 @@
 //   マウス : 砲塔の向き
 //   左クリック : 発射（押しっぱなしで連射。ただし発射間隔の制限あり）
 //
-// 赤い戦車 dummy はプレイヤーを追いかけ、dummy2 は動かずにマウスを狙う。
-// （まだ当たり判定はないので、弾は戦車をすり抜ける）
+// マップは App/map/stage1.txt から読み込む。戦車は壁を通れず、弾は壁で1回跳ね返る。
+// 赤い戦車（敵）はマップの 'E' の位置に置かれ、プレイヤーを追いかけて撃ってくる。
+// （まだ戦車と弾の当たり判定はないので、弾は戦車をすり抜ける）
 //
 
 // ------------------------------------------------------------
@@ -86,16 +87,33 @@ TankInput MakeChaseInput(const Tank& self, const Vec2& target) {
 
 void Main()
 {
-	Window::SetTitle(U"TankGame - Stage 3");
+	Window::SetTitle(U"TankGame - Stage 4");
 	Scene::SetBackground(ColorF{ 0.85, 0.80, 0.65 });
+
+	// ------------------------------------------------------------
+	// マップを読み込む
+	// ------------------------------------------------------------
+	// パスは App フォルダーからの相対パス（実行時の作業フォルダーが App のため）
+	Map map;
+	if (not map.load(U"map/stage1.txt"))
+	{
+		// 読み込みに失敗したら、メッセージを出して終了する
+		System::MessageBoxOK(U"マップ map/stage1.txt を読み込めませんでした。");
+		return;
+	}
 
 	// ------------------------------------------------------------
 	// 戦車を作る
 	// ------------------------------------------------------------
-	// クラスにしたので、同じ設計図から何台でも作れる。
-	Tank player{ Scene::Center(), ColorF{ 0.30, 0.45, 0.25 } };
-	Tank dummy{ Vec2{ 200, 150 }, ColorF{ 0.60, 0.30, 0.25 } };
-	Tank dummy2{ Vec2{ 500, 400 }, ColorF{ 0.70, 0.30, 0.25 } };
+	// プレイヤーはマップの 'P' の位置に置く
+	Tank player{ map.getPlayerStart(), ColorF{ 0.30, 0.45, 0.25 } };
+
+	// 敵はマップの 'E' の数だけ作る。台数がマップで決まるので Array で持つ。
+	Array<Tank> enemies;
+	for (const auto& pos : map.getEnemyStarts())
+	{
+		enemies.emplace_back(pos, ColorF{ 0.60, 0.30, 0.25 });
+	}
 
 	// ------------------------------------------------------------
 	// 画面上のすべての弾
@@ -113,14 +131,13 @@ void Main()
 		// 1. 更新
 		// ============================================================
 		// --- 戦車（撃った弾は bullets に追加される） ---
-		player.update(MakePlayerInput(), deltaTime, bullets);
+		player.update(MakePlayerInput(), deltaTime, map, bullets);
 
-		// 的の戦車: プレイヤーを狙う
-		dummy.update(MakeChaseInput(dummy, player.getPos()), deltaTime, bullets);
-
-		TankInput dummy2Input;
-		dummy2Input.aimTarget = Cursor::PosF();
-		dummy2.update(dummy2Input, deltaTime, bullets);
+		// 敵: Stage 2〜3 の練習課題で作った MakeChaseInput() でプレイヤーを追いかける
+		for (auto& enemy : enemies)
+		{
+			enemy.update(MakeChaseInput(enemy, player.getPos()), deltaTime, map, bullets);
+		}
 
 		// --- 弾 ---
 		// 範囲 for 文: bullets の要素を先頭から1つずつ bullet に入れて繰り返す。
@@ -128,7 +145,7 @@ void Main()
 		// auto& と「参照」で受け取る
 		for (auto& bullet : bullets)
 		{
-			bullet.update(deltaTime);
+			bullet.update(deltaTime, map);
 		}
 
 		// 寿命が切れた弾を配列から取り除く。
@@ -140,8 +157,13 @@ void Main()
 		// ============================================================
 		// 2. 描画
 		// ============================================================
-		dummy.draw();
-		dummy2.draw();
+		// マップを最初に描く（いちばん下に表示される）
+		map.draw();
+
+		for (const auto& enemy : enemies)
+		{
+			enemy.draw();
+		}
 		player.draw(); // 後に描いたほうが上に重なる
 
 		// 弾は戦車より上に描く。描画では弾を変えないので const auto& で受け取る。
